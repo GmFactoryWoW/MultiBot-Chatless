@@ -24,6 +24,7 @@ local THROTTLE_DEFAULTS = {
 
 local UI_DEFAULTS = {
   mainBar = {
+    fixedAboveActionBars = true,
     moveLocked = true,
     disableAutoCollapse = false,
     autoHideEnabled = false,
@@ -45,6 +46,7 @@ local DB_DEFAULTS = {
     },
     ui = {
       mainBar = {
+        fixedAboveActionBars = UI_DEFAULTS.mainBar.fixedAboveActionBars,
         moveLocked = UI_DEFAULTS.mainBar.moveLocked,
       },
     },
@@ -89,6 +91,9 @@ local function migrateLegacyConfigIntoProfile(profile)
   if MultiBot.Store and MultiBot.Store.NormalizeMainBarSettings then
     MultiBot.Store.NormalizeMainBarSettings(mainBar, UI_DEFAULTS.mainBar)
     return
+  end
+  if type(mainBar.fixedAboveActionBars) ~= "boolean" then
+    mainBar.fixedAboveActionBars = UI_DEFAULTS.mainBar.fixedAboveActionBars
   end
   if type(mainBar.moveLocked) ~= "boolean" then
     mainBar.moveLocked = UI_DEFAULTS.mainBar.moveLocked
@@ -168,6 +173,9 @@ function MultiBot.Config_Ensure()
 
   local ui = ensureTableField(config, "ui")
   local legacyMainBar = ensureTableField(ui, "mainBar")
+  if type(legacyMainBar.fixedAboveActionBars) ~= "boolean" then
+    legacyMainBar.fixedAboveActionBars = UI_DEFAULTS.mainBar.fixedAboveActionBars
+  end
   if type(legacyMainBar.moveLocked) ~= "boolean" then
     legacyMainBar.moveLocked = UI_DEFAULTS.mainBar.moveLocked
   end
@@ -277,6 +285,28 @@ function MultiBot.SetThrottleBurst(value)
   if MultiBot._ThrottleStats then
     MultiBot._ThrottleStats(MultiBot.GetThrottleRate(), throttle.burst)
   end
+end
+
+function MultiBot.GetMainBarFixedAboveActionBars()
+  local mainBar = MultiBot.Store and MultiBot.Store.GetMainBarStore and MultiBot.Store.GetMainBarStore()
+  local value = mainBar and mainBar.fixedAboveActionBars
+  if type(value) == "boolean" then
+    return value
+  end
+
+  return UI_DEFAULTS.mainBar.fixedAboveActionBars
+end
+
+function MultiBot.SetMainBarFixedAboveActionBars(value)
+  local mainBar = MultiBot.Store and MultiBot.Store.EnsureMainBarStore and MultiBot.Store.EnsureMainBarStore()
+  if not mainBar then
+    return UI_DEFAULTS.mainBar.fixedAboveActionBars
+  end
+  mainBar.fixedAboveActionBars = value and true or false
+  if MultiBot.ApplyMainBarFixedState then
+    MultiBot.ApplyMainBarFixedState(mainBar.fixedAboveActionBars)
+  end
+  return mainBar.fixedAboveActionBars
 end
 
 function MultiBot.GetMainBarMoveLocked()

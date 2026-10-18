@@ -11,6 +11,8 @@ local MAINBAR_BUTTON_STEP_Y = 34
 local LEFT_LAYOUT_SHIFT = 34
 local MAINBAR_AUTOHIDE_HOTSPOT_SIZE = 42
 local MAINBAR_AUTOHIDE_UPDATE_INTERVAL = 0.2
+local MAINBAR_FIXED_ACTIONBAR_GAP = 4
+local MAINBAR_FIXED_FALLBACK_Y = 120
 
 local LEFT_LAYOUT_NAMES = {
     "Creator",
@@ -359,7 +361,7 @@ local function createRewardButton(mainFrame)
         "Reward",
         0,
         306,
-        "Interface\\AddOns\\MultiBot\\Icons\\reward.blp",
+        MULTIBOT_ROOT .. "Icons\\reward.blp",
         MultiBot.L("tips.main.reward")
     ):setDisable()
 
@@ -529,7 +531,7 @@ local function createPullControlIcon(frame, name, x, y, icon, tipKey, onLeft)
     end
 
     button.border = button:CreateTexture(nil, "ARTWORK")
-    button.border:SetTexture("Interface\\AddOns\\MultiBot\\Icons\\border.blp")
+    button.border:SetTexture(MULTIBOT_ROOT .. "Icons\\border.blp")
     button.border:SetPoint("CENTER", button, "CENTER", 0, 0)
     button.border:SetWidth(34)
     button.border:SetHeight(34)
@@ -838,7 +840,7 @@ local function addMainCombatStrategyButton(frame, name, x, y, icon, tipKey, scop
 	button.icon:SetAllPoints(button)
 
 	button.border = button:CreateTexture(nil, "ARTWORK")
-	button.border:SetTexture("Interface\\AddOns\\MultiBot\\Icons\\border.blp")
+	button.border:SetTexture(MULTIBOT_ROOT .. "Icons\\border.blp")
 	button.border:SetPoint("CENTER", button, "CENTER", 0, 0)
 	button.border:SetSize(34, 34)
 	button.border:Hide()
@@ -1107,7 +1109,7 @@ function MultiBot.InitializeMainUI(tMultiBar)
         return nil
     end
 
-    local mainButton = tMultiBar.addButton(MAIN_BUTTON_NAME, 0, 0, MAIN_BUTTON_ICON, MultiBot.L("tips.main.master"))
+    local mainButton = tMultiBar.addButton(MAIN_BUTTON_NAME, 0, 2, MAIN_BUTTON_ICON, MultiBot.L("tips.main.master"), nil, 32)
     mainButton:RegisterForDrag("RightButton")
     local autoHideState = {
         multiBar = MultiBot.frames and MultiBot.frames["MultiBar"],
@@ -1127,15 +1129,101 @@ function MultiBot.InitializeMainUI(tMultiBar)
     detector:Hide()
     autoHideState.detector = detector
 
-    -- Resync hotspot on every programmatic bar move (layout restore, RTSC restore, reset coords, etc.).
+    local function applyFixedMainBarPosition()
+        local multiBar = autoHideState.multiBar
+        if not multiBar or not multiBar.ClearAllPoints or not multiBar.SetPoint then
+            return
+        end
+
+        multiBar:ClearAllPoints()
+
+        -- Always use the vanilla lower-right action bar as the reference.
+        -- Do not fall back to another action bar when MultiBarBottomRight is hidden:
+        -- its buttons keep their layout coordinates, which gives us the exact slot
+        -- where that bar would normally be displayed.
+        local function findRightmostBottomRightButton()
+            local bestButton = nil
+            local bestRight = nil
+            for index = 1, 12 do
+                local button = _G["MultiBarBottomRightButton" .. index]
+                if button and button.GetRight then
+                    local right = button:GetRight()
+                    if right and (not bestRight or right > bestRight) then
+                        bestButton = button
+                        bestRight = right
+                    end
+                end
+            end
+            return bestButton
+        end
+
+        local anchorButton = findRightmostBottomRightButton()
+        local bottomRightBar = _G["MultiBarBottomRight"]
+        local bottomRightBarVisible = bottomRightBar and bottomRightBar.IsShown and bottomRightBar:IsShown()
+
+        -- Use the actual state of the Main-panel switches rather than frame visibility.
+        -- toggleMasters/toggleRTSC update button.state before they ask MultiBar to move,
+        -- while the corresponding Show()/Hide() calls happen afterwards. Basing the
+        -- offsets on visibility therefore applies the old state during that move.
+        local mainPanel = multiBar.frames and multiBar.frames["Main"]
+        local mainButtons = mainPanel and mainPanel.buttons
+
+        -- When "Game Master Control" is enabled, its root button adds one icon to
+        -- the right side of the main row. Shift the whole fixed bar left by one icon.
+        local gmOffsetX = 0
+        local gmSwitch = mainButtons and mainButtons["Masters"]
+        if gmSwitch and gmSwitch.state then
+            local gmButton = multiBar.buttons and multiBar.buttons["Masters"]
+            gmOffsetX = (gmButton and gmButton.GetWidth and gmButton:GetWidth())
+                or (gmSwitch.GetWidth and gmSwitch:GetWidth())
+                or 32
+        end
+
+        -- When the RTSC switch is enabled, the RTSC row occupies one icon row below
+        -- the main bar. Shift the whole fixed bar up by one icon height.
+        local rtscOffsetY = 0
+        local rtscSwitch = mainButtons and mainButtons["RTSC"]
+        if rtscSwitch and rtscSwitch.state then
+            local rtscFrame = multiBar.frames and multiBar.frames["RTSC"]
+            rtscOffsetY = (rtscFrame and rtscFrame.GetHeight and rtscFrame:GetHeight())
+                or (rtscSwitch.GetHeight and rtscSwitch:GetHeight())
+                or 32
+        end
+
+        if anchorButton then
+            if bottomRightBarVisible then
+                -- Bar present: sit immediately above it, aligned to the right edge
+                -- of its actual rightmost action button.
+                multiBar:SetPoint("BOTTOMRIGHT", anchorButton, "TOPRIGHT", -100 - gmOffsetX, MAINBAR_FIXED_ACTIONBAR_GAP + rtscOffsetY)
+            else
+                -- Bar absent: occupy the exact row where MultiBarBottomRight would be,
+                -- while retaining the same right-edge alignment.
+                multiBar:SetPoint("BOTTOMRIGHT", anchorButton, "BOTTOMRIGHT", -100 - gmOffsetX, -5 + rtscOffsetY)
+            end
+        else
+            multiBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -8 - gmOffsetX, MAINBAR_FIXED_FALLBACK_Y + rtscOffsetY)
+        end
+
+        if MultiBot.RequestClickBlockerUpdate then
+            MultiBot.RequestClickBlockerUpdate(multiBar)
+        end
+        syncMainBarDetectorPosition(autoHideState)
+    end
+
+    -- Resync hotspot on every programmatic bar move. While fixed, ignore requested
+    -- coordinates and keep the bar anchored above the vanilla lower-right action bar.
     if autoHideState.multiBar
         and type(autoHideState.multiBar.setPoint) == "function"
         and not autoHideState.multiBar.__mbAutoHideSetPointHooked
     then
         local originalSetPoint = autoHideState.multiBar.setPoint
         autoHideState.multiBar.setPoint = function(...)
-            originalSetPoint(...)
-            syncMainBarDetectorPosition(autoHideState)
+            if autoHideState.multiBar.__mbFixedAboveActionBars then
+                applyFixedMainBarPosition()
+            else
+                originalSetPoint(...)
+                syncMainBarDetectorPosition(autoHideState)
+            end
             markMainBarInteraction(autoHideState)
         end
         autoHideState.multiBar.__mbAutoHideSetPointHooked = true
@@ -1167,11 +1255,36 @@ function MultiBot.InitializeMainUI(tMultiBar)
         mainButton.__mbMoveLocked = locked and true or false
     end
 
+    local function applyFixedState(fixed)
+        local isFixed = fixed
+        if isFixed == nil and MultiBot.GetMainBarFixedAboveActionBars then
+            isFixed = MultiBot.GetMainBarFixedAboveActionBars()
+        end
+        if isFixed == nil then
+            isFixed = true
+        end
+        mainButton.__mbFixedAboveActionBars = isFixed and true or false
+        if autoHideState.multiBar then
+            autoHideState.multiBar.__mbFixedAboveActionBars = mainButton.__mbFixedAboveActionBars
+        end
+        if mainButton.__mbFixedAboveActionBars then
+            mainButton:RegisterForDrag()
+            applyFixedMainBarPosition()
+        else
+            mainButton:RegisterForDrag("RightButton")
+        end
+    end
+
     MultiBot.ApplyMainBarMoveLockState = applyMoveLockState
+    MultiBot.ApplyMainBarFixedState = applyFixedState
     applyMoveLockState()
+    applyFixedState()
 
     mainButton:SetScript("OnDragStart", function()
         markMainBarInteraction(autoHideState)
+        if mainButton.__mbFixedAboveActionBars then
+            return
+        end
         local moveLocked = mainButton.__mbMoveLocked
         if moveLocked and not IsControlKeyDown() then
             if UIErrorsFrame then
@@ -1183,6 +1296,9 @@ function MultiBot.InitializeMainUI(tMultiBar)
         MultiBot.frames["MultiBar"]:StartMoving()
     end)
     mainButton:SetScript("OnDragStop", function()
+        if mainButton.__mbFixedAboveActionBars then
+            return
+        end
         MultiBot.frames["MultiBar"]:StopMovingOrSizing()
         saveMultiBarPosition()
         syncMainBarDetectorPosition(autoHideState)
@@ -1241,6 +1357,10 @@ function MultiBot.InitializeMainUI(tMultiBar)
                 return
             end
             autoHideState.elapsed = 0
+
+            if autoHideState.multiBar.__mbFixedAboveActionBars then
+                applyFixedMainBarPosition()
+            end
 
             local configuredEnabled = MultiBot.GetMainBarAutoHideEnabled and MultiBot.GetMainBarAutoHideEnabled() or false
             local configuredDelay = MultiBot.GetMainBarAutoHideDelay and MultiBot.GetMainBarAutoHideDelay() or autoHideState.delay
@@ -1452,7 +1572,7 @@ function MultiBot.InitializeMainUI(tMultiBar)
     createMainActionButton(mainFrame, {
         name = "Expand",
         y = 272,
-        icon = "Interface\\AddOns\\MultiBot\\Icons\\command_follow.blp",
+        icon = MULTIBOT_ROOT .. "Icons\\command_follow.blp",
         tip = "tips.main.expand",
         disabled = true,
         doLeft = function(button)

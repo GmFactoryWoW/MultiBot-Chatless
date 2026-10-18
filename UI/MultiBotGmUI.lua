@@ -152,7 +152,7 @@ function MultiBot.BuildGmUI(tMultiBar)
         return nil
     end
 
-    local mainButton = tMultiBar.addButton("Masters", 38, 0, "mail_gmicon", MultiBot.L("tips.game.master"))
+    local mainButton = tMultiBar.addButton("Masters", 38, 2, "mail_gmicon", MultiBot.L("tips.game.master"), nil, 32)
     mainButton:doHide()
 
     mainButton.doLeft = function(owner)

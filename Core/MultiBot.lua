@@ -313,7 +313,7 @@ function MultiBot.ClearGlobalBotStore()
 end
 
 local MINIMAP_CONFIG_DEFAULTS = {
-  hide = false,
+  hide = true,
   angle = 220,
 }
 
@@ -992,19 +992,125 @@ function MultiBot.ClearShamanTotemChoice(name, elementKey)
   end
 end
 
-function MultiBot.ToggleMainUIVisibility(desiredState)
-  local targetState = desiredState
-  if targetState == nil then
-    targetState = not MultiBot.state
-  else
-    targetState = not not targetState
+local function getPartyMemberCount()
+  if type(GetNumSubgroupMembers) == "function" then
+    return GetNumSubgroupMembers() or 0
+  end
+  if type(GetNumPartyMembers) == "function" then
+    return GetNumPartyMembers() or 0
+  end
+  return 0
+end
+
+local function getRaidMemberCount()
+  if type(IsInRaid) == "function" and not IsInRaid() then
+    return 0
+  end
+  if type(GetNumGroupMembers) == "function" and type(IsInRaid) == "function" and IsInRaid() then
+    return GetNumGroupMembers() or 0
+  end
+  if type(GetNumRaidMembers) == "function" then
+    return GetNumRaidMembers() or 0
+  end
+  return 0
+end
+
+function MultiBot.IsPlayerGroupLeader()
+  local raidCount = getRaidMemberCount()
+  if raidCount > 0 then
+    if type(IsRaidLeader) == "function" then
+      return IsRaidLeader() and true or false
+    end
+    if type(UnitIsGroupLeader) == "function" then
+      return UnitIsGroupLeader("player") and true or false
+    end
+    return false
   end
 
-  applyMainVisibility(MultiBot.frames, targetState)
+  local partyCount = getPartyMemberCount()
+  if partyCount > 0 then
+    if type(IsPartyLeader) == "function" then
+      return IsPartyLeader() and true or false
+    end
+    if type(UnitIsPartyLeader) == "function" then
+      return UnitIsPartyLeader("player") and true or false
+    end
+    if type(UnitIsGroupLeader) == "function" then
+      return UnitIsGroupLeader("player") and true or false
+    end
+  end
 
-  MultiBot.state = targetState
-  MultiBot.SetMainUIVisibleConfig(targetState and true or false)
-  return targetState
+  return false
+end
+
+function MultiBot.HasBotInGroup()
+  if not (MultiBot.index and type(MultiBot.index.players) == "table") then
+    return false
+  end
+
+  local bots = {}
+  for _, botName in ipairs(MultiBot.index.players) do
+    if type(botName) == "string" and botName ~= "" then
+      bots[string.lower(botName)] = true
+    end
+  end
+
+  local function unitIsBot(unit)
+    local name = type(UnitName) == "function" and UnitName(unit) or nil
+    return type(name) == "string" and bots[string.lower(name)] == true
+  end
+
+  local raidCount = getRaidMemberCount()
+  if raidCount > 0 then
+    for index = 1, raidCount do
+      if unitIsBot("raid" .. index) then
+        return true
+      end
+    end
+    return false
+  end
+
+  local partyCount = getPartyMemberCount()
+  for index = 1, partyCount do
+    if unitIsBot("party" .. index) then
+      return true
+    end
+  end
+
+  return false
+end
+
+function MultiBot.CanShowMainUI()
+  return (getRaidMemberCount() > 0 or getPartyMemberCount() > 0)
+      and MultiBot.IsPlayerGroupLeader()
+      and MultiBot.HasBotInGroup()
+end
+
+function MultiBot.ApplyMainUIVisibilityPolicy(desiredState)
+  local requestedState = desiredState
+  if requestedState == nil then
+    requestedState = MultiBot.GetMainUIVisibleConfig and MultiBot.GetMainUIVisibleConfig() ~= false
+  else
+    requestedState = not not requestedState
+  end
+
+  local actualState = requestedState and MultiBot.CanShowMainUI()
+  applyMainVisibility(MultiBot.frames, actualState)
+  MultiBot.state = actualState
+  return actualState
+end
+
+function MultiBot.ToggleMainUIVisibility(desiredState)
+  local requestedState = desiredState
+  if requestedState == nil then
+    local savedState = MultiBot.GetMainUIVisibleConfig and MultiBot.GetMainUIVisibleConfig() ~= false
+    requestedState = not savedState
+  else
+    requestedState = not not requestedState
+  end
+
+  MultiBot.SetMainUIVisibleConfig(requestedState)
+  return MultiBot.ApplyMainUIVisibilityPolicy(requestedState)
 end
 
 function MultiBot.DispatchEvent(eventName, ...)
@@ -1102,8 +1208,11 @@ local function tryCreateLifecycleBridge()
   return bindLifecycleBridge(bridge)
 end
 
-if not tryCreateLifecycleBridge() then
-  -- Fallback for environments where AceAddon is not available.
+if MultiBot_IS_FRAME_XML then
+  -- FrameXML globals registered with RegisterForSave are finalized later in the
+  -- client startup sequence. Defer MultiBot lifecycle until PLAYER_LOGIN.
+elseif not tryCreateLifecycleBridge() then
+  -- Fallback for normal AddOn environments where AceAddon is not available.
   runLifecycle()
 end
 
@@ -1502,7 +1611,7 @@ local function UpdateBridgeUnitButton(button, className, level, name)
 
   local texture = "Interface\\Icons\\INV_Misc_QuestionMark"
   if string.lower(classCanon) ~= "unknown" then
-    texture = "Interface\\AddOns\\MultiBot\\Icons\\class_"
+    texture = MULTIBOT_ROOT .. "Icons\\class_"
         .. string.lower(classCanon) .. ".blp"
   end
 
@@ -2780,7 +2889,7 @@ local function UpdateBridgeAltButton(button, entry)
 
   local texture = "Interface\\Icons\\INV_Misc_QuestionMark"
   if string.lower(botClass or "unknown") ~= "unknown" then
-    texture = "Interface\\AddOns\\MultiBot\\Icons\\class_"
+    texture = MULTIBOT_ROOT .. "Icons\\class_"
         .. string.lower(botClass) .. ".blp"
   end
 
@@ -3471,6 +3580,13 @@ function MultiBot.SyncBridgeRosterToPlayers(roster)
      MultiBot.RelayoutUnitsDisplay()
    end
 
+  -- The group roster event can fire before the Bridge roster has populated
+  -- MultiBot.index.players. Re-evaluate visibility now that bot identity is
+  -- authoritative, otherwise a group leader can remain with MultiBar hidden.
+  if MultiBot.ApplyMainUIVisibilityPolicy then
+    MultiBot.ApplyMainUIVisibilityPolicy()
+  end
+
   return true
 end
 
@@ -4058,7 +4174,7 @@ function MultiBot.EnsureFavoriteButtons(favorites)
       local className, level = MultiBot.ResolveFavoriteButtonMetadata(name, units)
       local texture = FAVORITE_UNKNOWN_TEXTURE
       if className ~= FAVORITE_UNKNOWN_CLASS then
-        texture = "Interface\\AddOns\\MultiBot\\Icons\\class_"
+        texture = MULTIBOT_ROOT .. "Icons\\class_"
             .. string.lower(className) .. ".blp"
       end
 

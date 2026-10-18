@@ -1,15 +1,15 @@
 if not MultiBot then return end
 
 local ATTACK_BUTTONS = {
-    { name = "Attack", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack.blp", cmd = "do attack my target", tip = "attack" },
-    { name = "Ranged", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack_ranged.blp", cmd = "@ranged do attack my target", tip = "ranged" },
-    { name = "Melee", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack_melee.blp", cmd = "@melee do attack my target", tip = "melee" },
-    { name = "Healer", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack_healer.blp", cmd = "@healer do attack my target", tip = "healer" },
-    { name = "Dps", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack_dps.blp", cmd = "@dps do attack my target", tip = "dps" },
-    { name = "Tank", icon = "Interface\\AddOns\\MultiBot\\Icons\\attack_tank.blp", cmd = "@tank do attack my target", tip = "tank" },
+    { name = "Attack", icon = MULTIBOT_ROOT .. "Icons\\attack.blp", cmd = "do attack my target", tip = "attack" },
+    { name = "Ranged", icon = MULTIBOT_ROOT .. "Icons\\attack_ranged.blp", cmd = "@ranged do attack my target", tip = "ranged" },
+    { name = "Melee", icon = MULTIBOT_ROOT .. "Icons\\attack_melee.blp", cmd = "@melee do attack my target", tip = "melee" },
+    { name = "Healer", icon = MULTIBOT_ROOT .. "Icons\\attack_healer.blp", cmd = "@healer do attack my target", tip = "healer" },
+    { name = "Dps", icon = MULTIBOT_ROOT .. "Icons\\attack_dps.blp", cmd = "@dps do attack my target", tip = "dps" },
+    { name = "Tank", icon = MULTIBOT_ROOT .. "Icons\\attack_tank.blp", cmd = "@tank do attack my target", tip = "tank" },
 }
 
-local ATTACK_ICON = "Interface\\AddOns\\MultiBot\\Icons\\attack.blp"
+local ATTACK_ICON = MULTIBOT_ROOT .. "Icons\\attack.blp"
 local ATTACK_FRAME_NAME = "Attack"
 local ATTACK_MAIN_X = -204
 local ATTACK_FRAME_X = -206

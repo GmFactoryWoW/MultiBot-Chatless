@@ -163,7 +163,8 @@ local function buildLegacyOptionsContent(panel)
   scrollChild:SetSize(1, 1)
   scrollFrame:SetScrollChild(scrollChild)
 
-  local minimapConfig = MultiBot.GetMinimapConfig and MultiBot.GetMinimapConfig() or { hide = false }
+  local minimapConfig = MultiBot.GetMinimapConfig and MultiBot.GetMinimapConfig() or { hide = true }
+  local mainBarFixedAboveActionBars = MultiBot.GetMainBarFixedAboveActionBars and MultiBot.GetMainBarFixedAboveActionBars() or true
   local mainBarMoveLocked = MultiBot.GetMainBarMoveLocked and MultiBot.GetMainBarMoveLocked() or true
   local disableAutoCollapse = MultiBot.GetDisableAutoCollapse and MultiBot.GetDisableAutoCollapse() or false
   local mainBarAutoHideEnabled = MultiBot.GetMainBarAutoHideEnabled and MultiBot.GetMainBarAutoHideEnabled() or false
@@ -192,16 +193,54 @@ local function buildLegacyOptionsContent(panel)
     end
   end)
 
+  local chkMainBarFixed = CreateFrame("CheckButton", "MultiBot_MainBarFixedCheck", scrollChild, "InterfaceOptionsCheckButtonTemplate")
+  chkMainBarFixed:SetPoint("TOPLEFT", chkMinimapHide, "BOTTOMLEFT", 0, -8)
+  _G[chkMainBarFixed:GetName() .. "Text"]:SetText(optL("options.layout.fix_mainbar"))
+  chkMainBarFixed.tooltipText = optL("options.layout.fix_mainbar_desc")
+  chkMainBarFixed:SetChecked(mainBarFixedAboveActionBars and true or false)
+
   local chkMainBarMoveLocked = CreateFrame("CheckButton", "MultiBot_MainBarMoveLockedCheck", scrollChild, "InterfaceOptionsCheckButtonTemplate")
-  chkMainBarMoveLocked:SetPoint("TOPLEFT", chkMinimapHide, "BOTTOMLEFT", 0, -8)
+  chkMainBarMoveLocked:SetPoint("TOPLEFT", chkMainBarFixed, "BOTTOMLEFT", 0, -8)
   _G[chkMainBarMoveLocked:GetName() .. "Text"]:SetText(optL("options.layout.lock_mainbar"))
   chkMainBarMoveLocked.tooltipText = optL("options.layout.lock_mainbar_desc")
   chkMainBarMoveLocked:SetChecked(mainBarMoveLocked and true or false)
+
+  local moveLockTooltipOverlay = CreateFrame("Frame", nil, chkMainBarMoveLocked)
+  moveLockTooltipOverlay:SetAllPoints(chkMainBarMoveLocked)
+  moveLockTooltipOverlay:SetFrameLevel(chkMainBarMoveLocked:GetFrameLevel() + 5)
+  moveLockTooltipOverlay:EnableMouse(false)
+  moveLockTooltipOverlay:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(optL("options.layout.lock_mainbar_fixed_tooltip"), 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  moveLockTooltipOverlay:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+  end)
+
+  local function refreshLegacyMoveLockAvailability(fixed)
+    if fixed then
+      chkMainBarMoveLocked:Disable()
+      moveLockTooltipOverlay:EnableMouse(true)
+    else
+      moveLockTooltipOverlay:EnableMouse(false)
+      chkMainBarMoveLocked:Enable()
+    end
+  end
+
+  chkMainBarFixed:SetScript("OnClick", function(btn)
+    local fixed = btn:GetChecked() and true or false
+    if MultiBot.SetMainBarFixedAboveActionBars then
+      MultiBot.SetMainBarFixedAboveActionBars(fixed)
+    end
+    refreshLegacyMoveLockAvailability(fixed)
+  end)
   chkMainBarMoveLocked:SetScript("OnClick", function(btn)
     if MultiBot.SetMainBarMoveLocked then
       MultiBot.SetMainBarMoveLocked(btn:GetChecked() and true or false)
     end
   end)
+  refreshLegacyMoveLockAvailability(mainBarFixedAboveActionBars)
 
   local chkDisableAutoCollapse = CreateFrame("CheckButton", "MultiBot_DisableAutoCollapseCheck", scrollChild, "InterfaceOptionsCheckButtonTemplate")
   chkDisableAutoCollapse:SetPoint("TOPLEFT", chkMainBarMoveLocked, "BOTTOMLEFT", 0, -8)
@@ -567,8 +606,11 @@ function MultiBot.BuildOptionsPanel()
     local selectedOwnerKey = nil
     local strataLevels = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }
     local minimapHelpText = optL("options.minimap.explainer")
+    local mainBarFixedLabel = optL("options.layout.fix_mainbar")
+    local mainBarFixedDesc = optL("options.layout.fix_mainbar_desc")
     local mainBarMoveLockLabel = optL("options.layout.lock_mainbar")
     local mainBarMoveLockDesc = optL("options.layout.lock_mainbar_desc")
+    local mainBarMoveLockFixedTooltip = optL("options.layout.lock_mainbar_fixed_tooltip")
     local layoutOwnerLabel = optL("options.layout.owner_import")
 
     local function addTabScroll(tabGroup)
@@ -580,7 +622,7 @@ function MultiBot.BuildOptionsPanel()
 
     local function buildMinimapTab(tabGroup)
       local scroll = addTabScroll(tabGroup)
-      local minimapConfig = MultiBot.GetMinimapConfig and MultiBot.GetMinimapConfig() or { hide = false }
+      local minimapConfig = MultiBot.GetMinimapConfig and MultiBot.GetMinimapConfig() or { hide = true }
 
       local explainer = AceGUI:Create("Label")
       explainer:SetFullWidth(true)
@@ -615,11 +657,22 @@ function MultiBot.BuildOptionsPanel()
 
     local function buildLayoutTab(tabGroup)
       local scroll = addTabScroll(tabGroup)
+      local mainBarFixedAboveActionBars = MultiBot.GetMainBarFixedAboveActionBars and MultiBot.GetMainBarFixedAboveActionBars() or true
       local mainBarMoveLocked = MultiBot.GetMainBarMoveLocked and MultiBot.GetMainBarMoveLocked() or true
       local disableAutoCollapse = MultiBot.GetDisableAutoCollapse and MultiBot.GetDisableAutoCollapse() or false
       local mainBarAutoHideEnabled = MultiBot.GetMainBarAutoHideEnabled and MultiBot.GetMainBarAutoHideEnabled() or false
       local mainBarAutoHideDelay = MultiBot.GetMainBarAutoHideDelay and MultiBot.GetMainBarAutoHideDelay() or 60
       local lootMasterUIEnabled = MultiBot.GetLootMasterUIEnabled and MultiBot.GetLootMasterUIEnabled() or true
+
+      local chkMainBarFixed = AceGUI:Create("CheckBox")
+      chkMainBarFixed:SetLabel(mainBarFixedLabel)
+      if chkMainBarFixed.SetDescription then
+        chkMainBarFixed:SetDescription(mainBarFixedDesc)
+      end
+      chkMainBarFixed:SetValue(mainBarFixedAboveActionBars and true or false)
+      chkMainBarFixed:SetFullWidth(true)
+      scroll:AddChild(chkMainBarFixed)
+      panel.chkMainBarFixed = chkMainBarFixed
 
       local chkMainBarMoveLocked = AceGUI:Create("CheckBox")
       chkMainBarMoveLocked:SetLabel(mainBarMoveLockLabel)
@@ -628,11 +681,38 @@ function MultiBot.BuildOptionsPanel()
       end
       chkMainBarMoveLocked:SetValue(mainBarMoveLocked and true or false)
       chkMainBarMoveLocked:SetFullWidth(true)
+
+      local moveLockTooltipOverlay = CreateFrame("Frame", nil, chkMainBarMoveLocked.frame)
+      moveLockTooltipOverlay:SetAllPoints(chkMainBarMoveLocked.frame)
+      moveLockTooltipOverlay:SetFrameLevel(chkMainBarMoveLocked.frame:GetFrameLevel() + 5)
+      moveLockTooltipOverlay:EnableMouse(false)
+      moveLockTooltipOverlay:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(mainBarMoveLockFixedTooltip, 1, 1, 1, true)
+        GameTooltip:Show()
+      end)
+      moveLockTooltipOverlay:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+      end)
+
+      local function refreshAceMoveLockAvailability(fixed)
+        chkMainBarMoveLocked:SetDisabled(fixed and true or false)
+        moveLockTooltipOverlay:EnableMouse(fixed and true or false)
+      end
+
+      chkMainBarFixed:SetCallback("OnValueChanged", function(_, _, value)
+        local fixed = value and true or false
+        if MultiBot.SetMainBarFixedAboveActionBars then
+          MultiBot.SetMainBarFixedAboveActionBars(fixed)
+        end
+        refreshAceMoveLockAvailability(fixed)
+      end)
       chkMainBarMoveLocked:SetCallback("OnValueChanged", function(_, _, value)
         if MultiBot.SetMainBarMoveLocked then
           MultiBot.SetMainBarMoveLocked(value and true or false)
         end
       end)
+      refreshAceMoveLockAvailability(mainBarFixedAboveActionBars)
       scroll:AddChild(chkMainBarMoveLocked)
       panel.chkMainBarMoveLocked = chkMainBarMoveLocked
 

@@ -9798,8 +9798,6 @@ function Comm.HandleAddonMessage(prefix, message, distribution, sender)
           L("disperse.confirm.set", "Disperse set to %s yards."),
           distance
         ))
-      elseif command == "disperse disable" then
-        systemMessage(L("disperse.confirm.disable", "Disperse disabled."))
       end
     end
 

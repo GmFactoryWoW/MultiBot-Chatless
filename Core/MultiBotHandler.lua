@@ -647,6 +647,9 @@ local function applyImportedLayoutEntry(key, value)
 
 	setSavedLayoutValue(key, value)
 	if key == "MultiBarPoint" then
+		if MultiBot.GetMainBarFixedAboveActionBars and MultiBot.GetMainBarFixedAboveActionBars() then
+			return true
+		end
 		local multibar = MultiBot.frames and MultiBot.frames["MultiBar"]
 		if multibar and multibar.setPoint and MultiBot.doSplit then
 			local split = MultiBot.doSplit(value, ", ")
@@ -755,7 +758,10 @@ local function restoreBoundFramePoints()
 	for _, binding in ipairs(POINT_FRAME_BINDINGS) do
 		local pointValue = getSavedLayoutValue(binding.saveKey)
 		local frame = binding.getFrame and binding.getFrame()
-		if pointValue ~= nil and frame and frame.setPoint then
+		local skipFixedMainBar = binding.saveKey == "MultiBarPoint"
+			and MultiBot.GetMainBarFixedAboveActionBars
+			and MultiBot.GetMainBarFixedAboveActionBars()
+		if pointValue ~= nil and frame and frame.setPoint and not skipFixedMainBar then
 			local pointX, pointY = string.match(tostring(pointValue), "^%s*(-?%d+)%s*,%s*(-?%d+)%s*$")
 			pointX = tonumber(pointX)
 			pointY = tonumber(pointY)
@@ -1431,6 +1437,10 @@ function MultiBot.HandleMultiBotEvent(event, ...)
 		or event == "PARTY_MEMBERS_CHANGED"
 		or event == "RAID_ROSTER_UPDATE"
 		or event == "UNIT_PET") then
+		if event ~= "UNIT_PET" and MultiBot.ApplyMainUIVisibilityPolicy then
+			MultiBot.ApplyMainUIVisibilityPolicy()
+		end
+
 		local hunterQuick = MultiBot and MultiBot.HunterQuick
 		if hunterQuick then
 			if event ~= "UNIT_PET" and hunterQuick.Rebuild then
@@ -1489,6 +1499,16 @@ function MultiBot.HandleMultiBotEvent(event, ...)
             end)
         else
             ReconnectExistingGroupBots("entering-world")
+        end
+
+        if not MultiBot._accountLevelChatFilterInstalled and type(ChatFrame_AddMessageEventFilter) == "function" then
+            MultiBot._accountLevelChatFilterInstalled = true
+            ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, message, ...)
+                if type(message) == "string" and message:match("^%s*[Yy]our%W+[Aa]ccount%W+[Ll]evel%W+[Ii]s%W*:%s*%d+%s*$") then
+                    return true
+                end
+                return false
+            end)
         end
 
         SendChatMessage(".account", "SAY")
@@ -1669,6 +1689,12 @@ function MultiBot.HandleMultiBotEvent(event, ...)
 
         -- La liste des players est prête : on met l’index Favoris à jour
         if MultiBot.UpdateFavoritesIndex then MultiBot.UpdateFavoritesIndex() end
+
+        -- Le roster des bots vient d'etre actualise : reevalue immediatement
+        -- l'affichage de la barre principale selon les bots presents dans le groupe.
+        if MultiBot.ApplyMainUIVisibilityPolicy then
+          MultiBot.ApplyMainUIVisibilityPolicy()
+        end
 
         -- UI REFRESH (INCONDITIONNEL) :
         -- Rafraîchit la vue en réutilisant le roster courant (players/favorites/actives/…)
@@ -2048,7 +2074,7 @@ function MultiBot.HandleMultiBotEvent(event, ...)
 				table.insert(MultiBot.index.classes.friends[tClass], tName)
 			end
 
-			tButton.setTexture("Interface\\AddOns\\MultiBot\\Icons\\class_" .. string.lower(tClass) .. ".blp")
+			tButton.setTexture(MULTIBOT_ROOT .. "Icons\\class_" .. string.lower(tClass) .. ".blp")
 			tButton.tip = MultiBot.toTip(tClass, tLevel, tName)
 			tButton.class = tClass
 		end

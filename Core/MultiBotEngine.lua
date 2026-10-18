@@ -229,6 +229,11 @@ MultiBot.SafeTexturePath = function(pTexture)
 	-- Si l’appelant fournit déjà un chemin (avec / ou \), on le considère explicite
 	-- et on le renvoie tel quel, après normalisation vers "\"
     local tex = pTexture:gsub("/", "\\")
+	-- Rewrite legacy paths so persisted/runtime texture strings also work from FrameXML.
+	local legacyRoot = "Interface\\AddOns\\MultiBot\\"
+	if string.sub(string.lower(tex), 1, string.len(legacyRoot)) == string.lower(legacyRoot) then
+		tex = MULTIBOT_ROOT .. string.sub(tex, string.len(legacyRoot) + 1)
+	end
 	if tex:find("\\", 1, true) then
 		return tex
 	end
@@ -1515,9 +1520,9 @@ MultiBot.newFrame = function(pParent, pX, pY, pSize, oWidth, oHeight, oAlign)
 		return frame.buttons[pName]
 	end
 
-	frame.addButton = function(pName, x, y, pTexture, pTip, oTemplate)
+	frame.addButton = function(pName, x, y, pTexture, pTip, oTemplate, oSize)
 		if(frame.buttons[pName] ~= nil) then frame.buttons[pName]:Hide() end
-		frame.buttons[pName] = MultiBot.newButton(frame, x, y, frame.size, pTexture, pTip, oTemplate)
+		frame.buttons[pName] = MultiBot.newButton(frame, x, y, MultiBot.IF(oSize ~= nil, oSize, frame.size), pTexture, pTip, oTemplate)
 		return frame.buttons[pName]
 	end
 
@@ -1660,7 +1665,7 @@ MultiBot.newButton = function(pParent, pX, pY, pSize, pTexture, pTip, oTemplate)
 	button.icon:Show()
 
 	button.border = button:CreateTexture(nil, "ARTWORK")
-	button.border:SetTexture("Interface\\AddOns\\MultiBot\\Icons\\border.blp")
+	button.border:SetTexture(MULTIBOT_ROOT .. "Icons\\border.blp")
 	button.border:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2)
 	button.border:SetSize(pSize + 4, pSize + 4)
 	button.border:Hide()
@@ -2523,7 +2528,7 @@ MultiBot.addPlayer = function(pClass, pName)
   local btn   = units.buttons[pName]
   local tClass = (MultiBot.toClass and MultiBot.toClass(pClass)) or (pClass or "Unknown")
   tClass = tClass or "Unknown"
-  local tTexture = "Interface\\AddOns\\MultiBot\\Icons\\class_" .. string.lower(tClass) .. ".blp"
+  local tTexture = MULTIBOT_ROOT .. "Icons\\class_" .. string.lower(tClass) .. ".blp"
   if not btn then
     btn = units.addButton(pName, 0, 0, tTexture, MultiBot.toTip(tClass, nil, pName))
     btn:Hide()
@@ -2574,7 +2579,7 @@ MultiBot.addMember = function(pClass, pLevel, pName)
     tEffectiveClass = tButton.class
   end
 
-  local tTexture = "Interface\\AddOns\\MultiBot\\Icons\\class_" .. string.lower(tEffectiveClass) .. ".blp"
+  local tTexture = MULTIBOT_ROOT .. "Icons\\class_" .. string.lower(tEffectiveClass) .. ".blp"
   if(tButton == nil) then
     tButton = tUnits.addButton(pName, 0, 0, tTexture, MultiBot.toTip(tEffectiveClass, tLevel, pName))
     tButton:Hide()
@@ -2616,7 +2621,7 @@ MultiBot.addFriend = function(pClass, pLevel, pName)
     tEffectiveClass = tButton.class
   end
 
-  local tTexture = "Interface\\AddOns\\MultiBot\\Icons\\class_" .. string.lower(tEffectiveClass) .. ".blp"
+  local tTexture = MULTIBOT_ROOT .. "Icons\\class_" .. string.lower(tEffectiveClass) .. ".blp"
   if(tButton == nil) then
     tButton = tUnits.addButton(pName, 0, 0, tTexture, MultiBot.toTip(tEffectiveClass, tLevel, pName))
     tButton:Hide()
@@ -2644,7 +2649,7 @@ end
 
 MultiBot.addActive = function(pClass, pLevel, pName)
 	local tClass = MultiBot.toClass(pClass)
-	local tTexture = "Interface\\AddOns\\MultiBot\\Icons\\class_" .. string.lower(tClass) .. ".blp"
+	local tTexture = MULTIBOT_ROOT .. "Icons\\class_" .. string.lower(tClass) .. ".blp"
 	local tUnits = MultiBot.frames["MultiBar"].frames["Units"]
 	local tButton = tUnits.buttons[pName]
 

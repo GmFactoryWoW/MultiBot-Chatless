@@ -301,6 +301,9 @@ function Store.NormalizeMainBarSettings(mainBar, defaults)
     return
   end
 
+  if type(mainBar.fixedAboveActionBars) ~= "boolean" then
+    mainBar.fixedAboveActionBars = defaults.fixedAboveActionBars
+  end
   if type(mainBar.moveLocked) ~= "boolean" then
     mainBar.moveLocked = defaults.moveLocked
   end
