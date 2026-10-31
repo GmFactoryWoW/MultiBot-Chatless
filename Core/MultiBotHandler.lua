@@ -1458,6 +1458,7 @@ function MultiBot.HandleMultiBotEvent(event, ...)
 	if (event == "PLAYER_ENTERING_WORLD"
 		or event == "GROUP_ROSTER_UPDATE"
 		or event == "PARTY_MEMBERS_CHANGED"
+		or event == "PARTY_LEADER_CHANGED"
 		or event == "RAID_ROSTER_UPDATE"
 		or event == "UNIT_PET") then
 		if event ~= "UNIT_PET" and MultiBot.ApplyMainUIVisibilityPolicy then
@@ -1493,6 +1494,10 @@ function MultiBot.HandleMultiBotEvent(event, ...)
 						and type(bridge.roster) == "table"
 						and MultiBot.SyncBridgeRosterToPlayers then
 						MultiBot.SyncBridgeRosterToPlayers(bridge.roster)
+						-- Refresh ownership after group or leader changes.
+						if MultiBot.Comm and MultiBot.Comm.RequestRoster then
+							MultiBot.Comm.RequestRoster()
+						end
 					end
 				end
 
