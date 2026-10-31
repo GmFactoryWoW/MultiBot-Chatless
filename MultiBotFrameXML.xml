@@ -69,6 +69,7 @@
   <Script file="Strategies\MultiBotShaman.lua"/>
   <Script file="Strategies\MultiBotWarlock.lua"/>
   <Script file="Strategies\MultiBotWarrior.lua"/>
+  <Script file="Features\MultiBotAutogear.lua"/>
   <Script file="Core\MultiBotEvery.lua"/>
   <Script file="UI\MultiBotStats.lua"/>
   <Script file="UI\MultiBotSpell.lua"/>
